@@ -105,4 +105,4 @@ ENV/
 
 # to ignore
 eda/
-src/dqn_sample.py
+src/dqn_cartpole_example.py
