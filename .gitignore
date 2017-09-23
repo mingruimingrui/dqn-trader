@@ -105,4 +105,4 @@ ENV/
 
 # to ignore
 eda/
-dqn_sample.py
+src/dqn_sample.py
