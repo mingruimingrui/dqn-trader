@@ -1,0 +1,118 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Flask-SocketIO Test</title>
+
+  <!-- javascripts here -->
+  <!-- <script type="text/javascript" src="//code.jquery.com/jquery-2.1.4.min.js"></script> -->
+  <script type="text/javascript" src="../static/js/jquery-3.2.1.min.js"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.5/socket.io.min.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.0/jquery-ui.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui-touch-punch/0.2.3/jquery.ui.touch-punch.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/3.5.0/lodash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-easing/1.3/jquery.easing.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.3/highlight.min.js"></script>
+
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/gridstack.js/0.3.0/gridstack.min.css" />
+  <script type="text/javascript" src='//cdnjs.cloudflare.com/ajax/libs/gridstack.js/0.3.0/gridstack.min.js'></script>
+  <script type="text/javascript" src='//cdnjs.cloudflare.com/ajax/libs/gridstack.js/0.3.0/gridstack.jQueryUI.min.js'></script>
+
+  <script type="text/javascript" charset="utf-8">
+  $(document).ready(function(){
+    // init program
+    $('#log').append('Learning Visualizer 1.0');
+    var socket = io.connect('http://' + document.domain + ':' + location.port);
+
+    // config listener
+    socket.on('connect', function() {
+      socket.emit('connected', {data: 'I\'m connected!'});
+    });
+    socket.on('disconnect', function() {
+      $('#log').append('<br>Server disconnected');
+    });
+    socket.on('message', function(msg) {
+      $('#log').append('<br>' + msg.data);
+    });
+    socket.on('init plots', (titles) => {
+      titles = titles.data
+      var n_plots = titles.length;
+      var n_rows = Math.ceil(n_plots / 4);
+
+      for (var i=0; i<n_plots; i++) {
+        c_row = Math.floor(i / 4);
+        c_col = ((i / 4) % 1) * 4;
+        $('#grid-stack').append(
+          `<div class="grid-stack-item"
+                data-gs-x="`+(c_col*3)+`" data-gs-y="`+(c_row*4)+`"
+                data-gs-width="`+3+`" data-gs-height="`+4+`">
+            <div class="grid-stack-item-content">
+              <div class="plot" id="plot`+i+`"></div>
+              <div class="title">`+titles[i]+`</div>
+            </div>
+          </div>`
+        )
+      }
+
+      $(function () {
+          var options = {
+              cellHeight: 60,
+              verticalMargin: 20
+          };
+          $('.grid-stack').gridstack(options);
+      });
+    });
+
+    // config command line commands
+    $('form#command').submit(event => {
+      event.preventDefault();
+      var command = $(event.target).children('input').first().val();
+
+      switch (command) {
+        case 'start()':
+        socket.emit('initialize');
+        break;
+        case 'quit()':
+        socket.emit('disconnect request');
+        break;
+        default:
+        $('#log').append('<br>No such command!');
+      }
+
+      $(event.target).children('input').first().val('');
+    });
+
+    // init gridstackjs
+    // $(function () {
+    //     var options = {
+    //         cellHeight: 60,
+    //         verticalMargin: 20
+    //     };
+    //     $('.grid-stack').gridstack(options);
+    // });
+
+    // hide all objects to hide
+    $('.to-hide').hide();
+
+  });
+  </script>
+
+
+  <!-- css here -->
+  <link rel="stylesheet" href="../static/css/master.css">
+</head>
+<body>
+  <div class="side-bar">
+    <div class='log' id='log'></div>
+    <form id="command" action="#" method="POST">
+      $<input type="text">
+      <input class="to-hide" type="submit">
+    </form>
+  </div>
+
+  <div class="main-container">
+    <div class="grid-stack" id="grid-stack"></div>
+</div>
+</body>
+</html>

@@ -1,0 +1,63 @@
+* {
+  --console-black: #202020;
+  --console-lines: #505050;
+  font-family: courier
+}
+
+.side-bar {
+  height: 100vh;
+  width: 350px;
+  position: fixed;
+  top: 0;
+  right: 0;
+  background-color: var(--console-black);
+  color: lightgrey;
+}
+
+.side-bar .log {
+  height: calc(100% - 50px);
+  width: 100%;
+  padding: 5px;
+}
+
+.side-bar form {
+  height: 20px;
+  width: 100%;
+  position: absolute;
+  bottom: 0;
+  padding: 10px 5px;
+  border-top: 1px solid var(--console-lines);
+}
+
+.side-bar input {
+  height: 100%;
+  width: 90%;
+  background-color: var(--console-black);
+  padding-left: 1em;
+  border: none;
+  color: lightgrey;
+}
+
+.main-container {
+  width: calc(100vw - 475px);
+  height: calc(100% + 500px);
+  padding: 50px;
+}
+
+.grid-stack {
+  /*background-color: beige;*/
+}
+
+.grid-stack-item-content {
+  border: 1px solid lightgrey;
+  /*background-color: yellow;*/
+}
+
+.plot {
+  height: calc(100% - 81px);
+  border-bottom: 1px solid lightgrey;
+}
+
+.grid-stack-item-content .title {
+  height: 80px;
+}
