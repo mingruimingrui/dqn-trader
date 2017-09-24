@@ -1,12 +1,92 @@
+# home made env maker made to behave like openai gym
+import os
 import numpy as np
-import pandas as pd
+import datetime
 
+# limit_sym (list-like)[optional]: sets env to contain only syms in list
+# start, end (datetime)[optional]: sets time period, inclusive
+# lookback (int)[default 5]: sets lookback period
 class env_make:
-    def __init__(self, data):
 
+    def __init__(self, timestamps, syms, col_names, data, limit_syms=None, start=None, end=None, lookback=5):
+        if limit_syms != None:
+            data = data[:, list(map(lambda x: x in limit_syms, syms)), :]
+            syms = limit_syms
+
+        if start != None:
+            assert isinstance(start, datetime.datetime), 'start must be datetime'
+            data = data[timestamps >= start]
+            timestamps = timestamps[timestamps >= start]
+
+        if end != None:
+            assert isinstance(end, datetime.datetime), 'end must be datetime'
+            data = data[timestamps <= end]
+            timestamps = timestamps[timestamps <= end]
+
+        assert data.shape[0] >= lookback, 'not enough timesteps for your env'
+        assert data.shape[1] >= 0       , 'not enough assets in your env'
+        assert data.shape[2] >= 0       , 'not enough cols in your env'
+
+        self.timestamps = timestamps
+        self.syms = syms
+        self.col_names = col_names
+        self.data = data
+        self.lookback = lookback
+        self.count = 0
+        self.cur_time = timestamps[self.count + self.lookback - 1]
+        self.next_time = timestamps[self.count + self.lookback]
+        self.max_count = len(self.data) - self.lookback
+        self.action_shape = (len(self.syms),)
+
+    def random_action(self):
+        """
+        random_action()
+        randomly generates an action
+        """
+        action = np.random.random(self.action_shape)
+        while sum(action) == 0:
+            action = np.random.random(self.action_shape)
+        action /= sum(action)
+
+        return action
+
+    def step(self, action):
+        """
+        step(action)
+        action must be an array of size env.action_shape
+        """
+        assert self.count <= self.max_count, 'no more steps left in env, please reset'
+        assert action.shape == self.action_shape, 'action is wrong shape'
+        assert sum(action) != 0, 'action must not sum to 0'
+
+        # generate new state
+        state = [
+            self.data[self.count : self.count + self.lookback, :, :],
+            self.timestamps[self.count : self.count + self.lookback]
+        ]
+
+        # normalize action and calculate reward
+        action /= np.sum(action)
+        open_change = np.squeeze(self.data[self.count + self.lookback - 1, :, self.col_names == 'open'])
+        reward = np.sum(open_change * action)
+
+        # check if done
+        done = self.count >= self.max_count
+
+        # update counts
+        self.cur_time = self.timestamps[self.count + self.lookback - 1]
+        if not done:
+            self.next_time = self.timestamps[self.count + self.lookback]
+        self.count += 1
+
+        return state, reward, done
 
     def reset(self):
-
-
-    def step(action):
-        return state, reward, done
+        """
+        reset()
+        resets your env with same init values
+        """
+        print('env reset')
+        self.count = 0
+        self.cur_time = timestamps[self.count + self.lookback - 1]
+        self.next_time = timestamps[self.count + self.lookback]

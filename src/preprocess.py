@@ -54,8 +54,10 @@ def main():
     print('\nNow saving')
     col_names = ['open', 'close', 'high', 'low', 'adjclose', 'volume']
     # comment out when not in use just in case this file is ran by accident
-    np.savez('data/snp500_preprocessed.npz', timestamps=timestamps, syms=syms, col_names=col_names, data=df3)
+    #np.savez('data/snp500_preprocessed.npz', timestamps=timestamps, syms=syms, col_names=col_names, data=df3)
     print('Data array saved')
 
 if __name__ == '__main__':
+    print('preprocess.py started')
     main()
+    print('preprocess.py finished')

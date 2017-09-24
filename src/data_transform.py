@@ -16,21 +16,42 @@ def main():
     col_names  = file['col_names']
     data       = file['data']
 
-    ### reserved for feature engineering stuff in the future ###
+    # add MKT risk-free asset which remains at one with no interest rate
+    data = np.concatenate((np.ones((data.shape[0],1,data.shape[2])), data), 1)
+    syms = np.array(['MKT'] + list(syms))
 
-    ###
-
-    # we're really just interested in the multiple from the previous day's close price
+    # we're really just interested in the multiple from the previous day's open price
     # since we're trading based on monetary values rather than number of stocks
-    close_price = data[:,:,col_names == 'close']
+    close_price = data[:,:,col_names == 'open']
     data2 = data[1:len(timestamps)] / close_price[:len(timestamps) - 1]
     timestamps = timestamps[1:len(timestamps)]
 
+    # fill na with 1s
+    data2[np.isnan(data2)] = 1
+
+    # attempt to find places with stock split
+    stock_split_index = np.squeeze(data2[:,:,col_names == 'open']) > 1.99
+    data3 = data2
+    data3[stock_split_index] = 1
+
+    #**************************************************************************#
+    #*********  reserved for feature engineering stuff in the future  *********#
+    #**************************************************************************#
+
+
+
+    #**************************************************************************#
+    #**************************************************************************#
+    #**************************************************************************#
+
+    dataf = data2
     print(timestamps.shape, syms.shape, col_names.shape)
-    print(data2.shape)
+    print(dataf.shape)
 
     # comment out when not in use just in case this file is ran by accident
-    np.savez('data/snp500_transformed.npz', timestamps=timestamps, syms=syms, col_names=col_names, data=data2)
+    #np.savez('data/snp500_transformed.npz', timestamps=timestamps, syms=syms, col_names=col_names, data=dataf)
 
 if __name__ == '__main__':
+    print('data_transform.py started')
     main()
+    print('data_transform.py finished')
