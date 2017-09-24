@@ -102,6 +102,7 @@ ENV/
 
 # data files
 *pkl
+data/
 
 # to ignore
 eda/
