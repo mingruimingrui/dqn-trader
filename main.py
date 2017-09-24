@@ -4,14 +4,12 @@ import tensorflow as tf
 
 from env import env_make
 
-data_file_path = '/mnt/filesystem1/datasets/SNP500_PRICE.csv'
+data_file_path = '/mnt/filesystem1/datasets/snp500_preprocessed.npz'
 
 def main():
     print('Hello world')
 
     env = env_make(data_file_path)
-
-    print(env.)
 
 if __name__ == '__main__':
     main()
