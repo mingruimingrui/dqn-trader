@@ -1,10 +1,13 @@
+import os
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 
 from env import env_make
 
-data_file_path = '/mnt/filesystem1/datasets/snp500_preprocessed.npz'
+data_file_path = 'data/snp500_transformed.npz'
+
+def
 
 def main():
     print('Hello world')

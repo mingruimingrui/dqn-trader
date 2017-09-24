@@ -1,11 +1,13 @@
-# Put all preprocessing things here
+# put all preprocessing things here
 # run this from dqn-trader
+import os
 import numpy as np
 import pandas as pd
 import datetime
 from time import time
 
 def main():
+    assert os.path.exists('data'), 'create data file first'
     startTime = time()
 
     print('Loading data')
@@ -52,7 +54,7 @@ def main():
     print('\nNow saving')
     col_names = ['open', 'close', 'high', 'low', 'adjclose', 'volume']
     # comment out when not in use just in case this file is ran by accident
-    np.savez('../data/snp500_preprocessed.npz', timestamps=timestamps, syms=syms, col_names=col_names, data=df3)
+    np.savez('data/snp500_preprocessed.npz', timestamps=timestamps, syms=syms, col_names=col_names, data=df3)
     print('Data array saved')
 
 if __name__ == '__main__':
