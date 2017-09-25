@@ -74,9 +74,11 @@ The idea is to call ```env.step``` until you reach the last time step where you 
 > ```state, time, reward, done = env.step(action)```
 
 When ```env.step(action)``` is called, 4 variables are returned,
-- ```state``` is the current price changes of all random assets for the look back period is of the shape (look back, no. of assets, no. of feature cols)
+- ```state``` is the price changes of all random assets for the look back period is of the shape (look back, no. of assets, no. of feature cols) it is also normalized according to current open prices.
 - ```time``` is the time frame for the states
-- ```reward``` is the multiplication factor for your change in total invested value (you can change it to price change in each asset if you want to)
+- ```reward``` is the multiplication factor for your change in total invested value since the previous time frame (you can change it to price change in each asset if that is better)
 - ```done``` is a Boolean indicating if we have reached the last time frame
+
+As ```state``` is normalized to cur_open price, you can tell that the environment is trading at daily open. Do print out ```state``` and ```time``` to figure out exactly they are as people usually have problem with understanding them.
 
 Typically we use a while look to check if ```done``` is ```True```. Once you hit done == True, then it is time to print out your results! Over in ```main.py``` you can see an example of how it is used. Have fun coding!
