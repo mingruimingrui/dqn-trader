@@ -23,9 +23,9 @@ class env_make:
             data = data[timestamps <= end]
             timestamps = timestamps[timestamps <= end]
 
-        assert data.shape[0] >= lookback, 'not enough timesteps for your env'
-        assert data.shape[1] >= 0       , 'not enough assets in your env'
-        assert data.shape[2] >= 0       , 'not enough cols in your env'
+        assert data.shape[0] > lookback, 'not enough timesteps for your env'
+        assert data.shape[1] > 0       , 'not enough assets in your env'
+        assert data.shape[2] > 0       , 'not enough cols in your env'
 
         self.timestamps = timestamps
         self.syms = syms
@@ -33,9 +33,9 @@ class env_make:
         self.data = data
         self.lookback = lookback
         self.count = 0
-        self.cur_time = timestamps[self.count + self.lookback - 1]
-        self.next_time = timestamps[self.count + self.lookback]
-        self.max_count = len(self.data) - self.lookback
+        self.max_count = len(self.data) - self.lookback - 1
+        self.cur_time = timestamps[self.count + self.lookback]
+        self.next_time = timestamps[self.count + self.lookback + 1]
         self.action_shape = (len(self.syms),)
 
     def random_action(self):
@@ -44,9 +44,9 @@ class env_make:
         randomly generates an action
         """
         action = np.random.random(self.action_shape)
-        while sum(action) == 0:
+        while np.sum(action) == 0:
             action = np.random.random(self.action_shape)
-        action /= sum(action)
+        action /= np.sum(action)
 
         return action
 
@@ -57,18 +57,25 @@ class env_make:
         """
         assert self.count <= self.max_count, 'no more steps left in env, please reset'
         assert action.shape == self.action_shape, 'action is wrong shape'
-        assert sum(action) != 0, 'action must not sum to 0'
+        assert np.sum(action) != 0, 'action must not sum to 0'
 
-        # generate new state
-        state = [
-            self.data[self.count : self.count + self.lookback, :, :],
-            self.timestamps[self.count : self.count + self.lookback]
-        ]
+        # generate new state and normalize
+        state = self.data[self.count : self.count + self.lookback, :, :].copy()
+        mult = self.data[self.count + self.lookback, :, self.col_names == 'open']
+        mult = np.dot(np.ones((self.lookback,1)), mult)
+        mult = np.dot(np.expand_dims(mult, 2), np.ones((1, len(self.col_names))))
+        state /= mult
+
+        # calculate the timestamps for the state
+        time = self.timestamps[self.count : self.count + self.lookback]
 
         # normalize action and calculate reward
         action /= np.sum(action)
-        open_change = np.squeeze(self.data[self.count + self.lookback - 1, :, self.col_names == 'open'])
-        reward = np.sum(open_change * action)
+        action = np.squeeze(action)
+        open_p = np.squeeze(self.data[self.count + self.lookback - 1, :, self.col_names == 'open'])
+        open_n = np.squeeze(self.data[self.count + self.lookback, :, self.col_names == 'open'])
+
+        reward = np.sum(open_n / open_p * action)
 
         # check if done
         done = self.count >= self.max_count
@@ -79,7 +86,7 @@ class env_make:
             self.next_time = self.timestamps[self.count + self.lookback]
         self.count += 1
 
-        return state, reward, done
+        return state, time, reward, done
 
     def reset(self):
         """
@@ -88,5 +95,5 @@ class env_make:
         """
         print('env reset')
         self.count = 0
-        self.cur_time = timestamps[self.count + self.lookback - 1]
-        self.next_time = timestamps[self.count + self.lookback]
+        self.cur_time = timestamps[self.count + self.lookback]
+        self.next_time = timestamps[self.count + self.lookback + 1]

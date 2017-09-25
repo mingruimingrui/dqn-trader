@@ -20,19 +20,14 @@ def main():
     data = np.concatenate((np.ones((data.shape[0],1,data.shape[2])), data), 1)
     syms = np.array(['MKT'] + list(syms))
 
-    # we're really just interested in the multiple from the previous day's open price
-    # since we're trading based on monetary values rather than number of stocks
-    close_price = data[:,:,col_names == 'open']
-    data2 = data[1:len(timestamps)] / close_price[:len(timestamps) - 1]
-    timestamps = timestamps[1:len(timestamps)]
-
-    # fill na with 1s
-    data2[np.isnan(data2)] = 1
-
     # attempt to find places with stock split
-    stock_split_index = np.squeeze(data2[:,:,col_names == 'open']) > 1.99
-    data3 = data2
-    data3[stock_split_index] = 1
+    data2 = data
+    for j, s in enumerate(syms):
+        for i in range(len(timestamps) - 1):
+            open_1 = data[i,j,col_names == 'open']
+            open_2 = data[i+1,j,col_names == 'open']
+            if ((open_1 / open_2) > 1.9) | ((open_2 / open_1) > 1.9) :
+                data2[i+1:,j,col_names == 'open'] *= open_1 / open_2
 
     #**************************************************************************#
     #*********  reserved for feature engineering stuff in the future  *********#

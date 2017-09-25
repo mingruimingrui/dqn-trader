@@ -18,6 +18,7 @@ def main():
     df.index = range(len(df))
     df['Timestamp'] = df['Timestamp'].apply(lambda x: datetime.datetime.strptime(str(x), '%Y%m%d'))
 
+    # drop syms without all timestamps
     print('Identify syms to drop')
     syms_to_drop = []
     for s in df.Sym.unique():
@@ -28,6 +29,7 @@ def main():
 
     df2 = df[df.Sym.apply(lambda x: x not in syms_to_drop)]
 
+    # arrange data into a (timestamp, sym, values) shaped array for fast data traversal
     print('Syms dropped, now creating new data array')
     print('Time since start:', time() - startTime)
     timestamps = df2['Timestamp'].unique()
@@ -42,19 +44,36 @@ def main():
             df3[i,j] = temp.loc[temp['Sym'] == s, col_names]
         print(t)
 
-    print('Data array created')
+    # drop syms with nan data
+    # a data exploration shows that there are only a few assets with large counts of nan data
+    # makes sense to drop these assets as they would most likely be treated as outliers
+    print('Data array created, dropping nan syms')
     print('Time since start:', time() - startTime)
+
+    syms_to_keep = []
+    for i in range(len(syms)):
+        nb_nan = np.sum(np.isnan(data[:,i,:]))
+        if nb_nan == 0:
+            syms_to_keep.append(i)
+
+    syms = syms[syms_to_keep]
+    df4 = df3[:,syms_to_keep,:]
+
+    print('Done dropping nan syms')
+    print('Time since start:', time() - startTime)
+
+    df_f = df4
 
     print('\ntimestamps.shape, syms.shape, col_names.shape')
     print(timestamps.shape, syms.shape, col_names.shape)
 
-    print('\ndf3.shape')
-    print(df3.shape)
+    print('\ndf_f.shape')
+    print(df_f.shape)
 
     print('\nNow saving')
     col_names = ['open', 'close', 'high', 'low', 'adjclose', 'volume']
     # comment out when not in use just in case this file is ran by accident
-    #np.savez('data/snp500_preprocessed.npz', timestamps=timestamps, syms=syms, col_names=col_names, data=df3)
+    np.savez('data/snp500_preprocessed.npz', timestamps=timestamps, syms=syms, col_names=col_names, data=df3)
     print('Data array saved')
 
 if __name__ == '__main__':
