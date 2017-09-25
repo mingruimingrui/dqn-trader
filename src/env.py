@@ -3,15 +3,18 @@ import os
 import numpy as np
 import datetime
 
-# limit_sym (list-like)[optional]: sets env to contain only syms in list
+# syms_to_use (list-like)[optional]: sets env to contain only syms in list
 # start, end (datetime)[optional]: sets time period, inclusive
 # lookback (int)[default 5]: sets lookback period
 class env_make:
 
-    def __init__(self, timestamps, syms, col_names, data, limit_syms=None, start=None, end=None, lookback=5):
-        if limit_syms != None:
-            data = data[:, list(map(lambda x: x in limit_syms, syms)), :]
-            syms = limit_syms
+    def __init__(self, timestamps, syms, col_names, data, syms_to_use=None, start=None, end=None, lookback=5):
+        if syms_to_use != None:
+            assert isinstance(syms_to_use, list) | isinstance(syms_to_use, np.ndarray), 'syms_to_use must be list-like'
+            if isinstance(syms_to_use, np.ndarray):
+                assert len(syms_to_use, 1), 'syms_to_use must be vector'
+            data = data[:, list(map(lambda x: x in syms_to_use, syms)), :]
+            syms = syms_to_use
 
         if start != None:
             assert isinstance(start, datetime.datetime), 'start must be datetime'

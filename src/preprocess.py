@@ -11,7 +11,7 @@ def main():
     startTime = time()
 
     print('Loading data')
-    data_file_path = '/mnt/filesystem1/datasets/SNP500_PRICE.csv'
+    data_file_path = 'data/SNP500_PRICE.csv'
     df = pd.read_csv(data_file_path)
 
     print('Transform timestamp into proper form')
