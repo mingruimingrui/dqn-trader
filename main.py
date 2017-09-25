@@ -5,40 +5,44 @@ import pandas as pd
 # import tensorflow as tf
 import matplotlib.pyplot as plt
 # import seaborn as sns
-from src.env import env_make
+from src.env import Env
 
 # some params if ran as main
 DATA_FILE_PATH = 'data/snp500_transformed.npz'
-SYMS_TO_USE = ['AAP', 'GOOGL']  # None for all assets [syms] for multiple assets
+SYMS_TO_USE = ['GOOGL', 'AAPL', 'BRK-B']  # None for all assets [syms] for multiple assets
 START = datetime.datetime(2005,1,1)
 END   = datetime.datetime(2017,9,16)
 LOOKBACK = 5
 
 def load_data():
     file = np.load(DATA_FILE_PATH)
-    return file['timestamps'], file['syms'], file['col_names'], file['data']
+    return pd.DatetimeIndex(file['timestamps']), file['syms'], file['col_names'], file['data']
 
 def load_data_make_env(syms_to_use=None, start=None, end=None, lookback=5):
     timestamps, syms, col_names, data = load_data()
-    return env_make(timestamps, syms, col_names, data, syms_to_use, start, end, lookback)
+    return Env(timestamps, syms, col_names, data, syms_to_use, start, end, lookback)
 
 def main(syms_to_use=None, start=None, end=None, lookback=None):
     assert os.path.exists(DATA_FILE_PATH), 'Have you ran preprocess.py and data_transform.py yet?'
 
     # simple override if called from another file
+    SYMS_TO_USE_ = SYMS_TO_USE
+    START_ = START
+    END_ = END
+    LOOKBACK_ = LOOKBACK
+
     if syms_to_use != None:
-        SYMS_TO_USE = syms_to_use
+        SYMS_TO_USE_ = syms_to_use
     if start != None:
-        START = start
+        START_ = start
     if end != None:
-        END = end
+        END_ = end
     if lookback != None:
-        LOOKBACK = lookback
+        LOOKBACK_ = lookback
 
     # load up data and create enviornment
-    env = load_data_make_env(syms_to_use=SYMS_TO_USE)
-    # we just give weights of 1 to every asset
-    action = np.ones(env.action_shape)
+    env = load_data_make_env(syms_to_use=SYMS_TO_USE_, start=START_, end=END_, lookback=LOOKBACK_)
+    action = np.ones(env.action_shape)  # we just give weights of 1 to every asset for now
     val = 1
 
     # these are totally optional but I put them here for visualization later on
@@ -77,13 +81,13 @@ def main(syms_to_use=None, start=None, end=None, lookback=None):
             print('Final value:', val)
             print('Yearly reward:', val**(252 / len(env.timestamps)))
             print('Sharpe ratio:', (np.sum(rewards) - len(rewards)) / np.sqrt(np.var(rewards) * len(rewards)))
-            plt.plot(range(len(rewards)), np.cumprod(rewards))
+            plt.plot(range(len(rewards))[50:], np.cumprod(rewards)[50:])
             plt.title('Value over time')
             plt.figure()
-            plt.plot(range(len(rewards)), rewards)
+            plt.plot(range(len(rewards))[50:], rewards[50:])
             plt.title('Rewards over time')
             plt.figure()
-            plt.plot(range(len(sharpe)), sharpe)
+            plt.plot(range(len(sharpe))[50:], sharpe[50:])
             plt.title('Sharpe over time')
             plt.show()
 

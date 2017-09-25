@@ -6,7 +6,7 @@ import datetime
 # syms_to_use (list-like)[optional]: sets env to contain only syms in list
 # start, end (datetime)[optional]: sets time period, inclusive
 # lookback (int)[default 5]: sets lookback period
-class env_make:
+class Env:
 
     def __init__(self, timestamps, syms, col_names, data, syms_to_use=None, start=None, end=None, lookback=5):
         if syms_to_use != None:

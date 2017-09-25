@@ -21,7 +21,7 @@ def main():
     syms = np.array(['MKT'] + list(syms))
 
     # attempt to find places with stock split
-    data2 = data
+    data2 = data.copy()
     for j, s in enumerate(syms):
         for i in range(len(timestamps) - 1):
             open_1 = data[i,j,col_names == 'open']
@@ -39,7 +39,7 @@ def main():
     #**************************************************************************#
     #**************************************************************************#
 
-    dataf = data2
+    dataf = data2.copy()
     print(timestamps.shape, syms.shape, col_names.shape)
     print(dataf.shape)
 

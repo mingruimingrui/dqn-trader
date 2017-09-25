@@ -27,7 +27,7 @@ def main():
             syms_to_drop.append(s)
             print(s, count)
 
-    df2 = df[df.Sym.apply(lambda x: x not in syms_to_drop)]
+    df2 = df[df.Sym.apply(lambda x: x not in syms_to_drop)].copy()
 
     # arrange data into a (timestamp, sym, values) shaped array for fast data traversal
     print('Syms dropped, now creating new data array')
@@ -57,12 +57,12 @@ def main():
             syms_to_keep.append(i)
 
     syms = syms[syms_to_keep]
-    df4 = df3[:,syms_to_keep,:]
+    df4 = df3[:,syms_to_keep,:].copy()
 
     print('Done dropping nan syms')
     print('Time since start:', time() - startTime)
 
-    df_f = df4
+    df_f = df4.copy()
 
     print('\ntimestamps.shape, syms.shape, col_names.shape')
     print(timestamps.shape, syms.shape, col_names.shape)
