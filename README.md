@@ -16,35 +16,32 @@ Make sure that you have fulfilled these prerequisites:
 - pandas_datareader
 - matplotlib
 
-From your directory of preference do,
+To download this github repo and the dataset, from your directory of preference do,
+
 ```
 $ git clone https://github.com/mingruimingrui/dqn-trader.git
 $ mkdir data
 $ python src/download_data.py
 ```
+
 It should take quite a while to download all that data, alternatively, drop me a message (only if you know me) I'll send you the file, it's not that large.
 
-> I should have downloaded the stock split data and did the split transformation here but right now. If anyone wants to help, please do so. I'm putting this task on hold for now.
+The data is stored in a three dimensional matrix in the layout [ timestamp , ticker(or symbol), data_name ]. Benefits to storing data this way rather than in a traditional table like dataframe is 3 folds,
 
-Next up is ```preprocessing.py``` and ```data_transform.py```. I split the two of them up into two files as they are meant to do totally different things.
-
-We do ```preprocessing.py``` to transform the original data frame object into a multi-dimensional array of the form (timestamp, sym, feature). The advantages of doing this is three-folds,
-1. Fast and easy retrieval of data (8-10x faster from local testing)
+1. Increased speed of information retrieval since the space of sorting and filter is greatly reduced (8-10x faster from local testing)
 2. Memory saving (almost 2x)
-3. Compatibility with pkl and npz files which makes the saving and reading process much quicker
+3. Leverage on npz/pkl file which greatly improves speed of file reading for running code on shell
 4. (greater GPU compatibility if you are into those kinda stuff)
 
-Then ```data_transform.py``` is more for feature engineering though I'm only using it to add in the market asset and handle stock splits at this point of time.
+Next up is ```preprocessing.py```. The plan is to use this file for feature engineering though I'm only using it to add in the market asset and handle stock splits at this point of time.
 
-> The way I'm handling stock splits is not good it is best done in ```download_data.py``` as it maximizes speed
+Keep in mind, the code needs to be ran from the directory where ```main.py``` is,
 
-To do all that just do these two from the directory where ```main.py``` is,
 ```
 $ python src/preprocessing.py
-$ python src/data_transform.py
 ```
 
-Btw all your data is stored in ```data/``` so refer to that place if you want to.
+Btw all your data is stored in your created ```data``` file so refer to that place if you want to.
 
 ## Using env.py
 Refer to ```main.py``` and ```env.py```.

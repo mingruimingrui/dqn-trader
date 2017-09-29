@@ -105,6 +105,5 @@ ENV/
 data/
 
 # to ignore
-eda/
-src/dqn_cartpole_example.py
+playground/
 testing.py
