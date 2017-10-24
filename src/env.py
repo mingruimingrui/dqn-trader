@@ -108,6 +108,11 @@ class Env:
         self.cur_time = timestamps[self.state_ts_dict[self.state_nb]]
         self.next_time = timestamps[self.state_ts_dict[self.state_nb + 1]]
 
+        print('env initiated')
+        print(min(self.timestamps).strftime('%d %b %y'), 'to', max(self.timestamps).strftime('%d %b %y'))
+        print('step size:', self.step_size)
+        print('lookback :', self.lookback)
+
     def random_action(self):
         """
         random_action()
@@ -127,7 +132,9 @@ class Env:
         """
         assert self.state_nb <= self.max_state_nb, 'no more steps left in env, please reset'
         assert action.shape == self.action_shape, 'action is wrong shape'
-        assert np.sum(action) != 0, 'action must not sum to 0'
+        assert np.sum(action) > 0, 'action sum must be greater than 0'
+        # if np.sum(abs(action[1:] / np.sum(action)) > 0.17):
+        #     print('UserWarning: Asset has more than 0.17% allocation')
 
         # generate new state and normalize
         state_ts_index = self.state_ts_dict[self.state_nb]
@@ -141,7 +148,7 @@ class Env:
         time = self.timestamps[state_ts_index - self.lookback * self.lookback_mult : state_ts_index]
 
         # normalize action and calculate reward
-        action /= np.sum(action)
+        action = action / np.sum(action)
         action = np.squeeze(action)
         open_p = np.squeeze(self.data[self.state_ts_dict[self.state_nb - 1], :, self.col_names == 'open'])
         open_n = np.squeeze(self.data[state_ts_index                       , :, self.col_names == 'open'])

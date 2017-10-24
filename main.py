@@ -1,4 +1,5 @@
 import os
+import warnings
 from datetime import datetime
 import numpy as np
 import pandas as pd
@@ -7,9 +8,12 @@ import matplotlib.pyplot as plt
 # import seaborn as sns
 from src.env import Env
 
+# we want to avoid division by zero and not just throw an error
+warnings.filterwarnings('error')
+
 # some params if ran as main
 DATA_FILE_PATH = 'data/snp500_transformed.npz'
-SYMS_TO_USE = ['GOOGL', 'AAPL', 'BRK-B']  # None for all assets [syms] for multiple assets
+SYMS_TO_USE = None  # None for all assets [syms] for multiple assets
 START = datetime(2005,1,1)
 END   = datetime(2017,9,16)
 STEP_SIZE = 'week'
@@ -52,11 +56,15 @@ def main(syms_to_use=None, start=None, end=None, step_size=None, lookback=None):
     # these are totally optional but I put them here for visualization later on
     rewards = []
     sharpe = []
+    nb_long = []
+    max_action = []
 
     # typically we start off with a random action just to get an initial state
     # take note that state is noramlized according to the current open prices at env.cur_time
     # I do it this way as all I'm insterested in is how each asset changed over the course of lookback
     state, time, reward, done = env.step(env.random_action())
+
+    weight_m = state[len(state) - 1,:,env.col_names == 'open'].reshape(-1)
 
     while not done:
         # you can build your model here
@@ -67,7 +75,21 @@ def main(syms_to_use=None, start=None, end=None, step_size=None, lookback=None):
         #*********************  reserved for model building  *********************#
         #*************************************************************************#
 
+        temp = 0.7
+        weight_m =  (1-temp) * weight_m + temp * state[len(state) - 1,:,env.col_names == 'open'].reshape(-1)
+        cur_price = state[:,:,env.col_names == 'open'].mean(axis=0).reshape(-1)
 
+        action = (cur_price - weight_m) > 0
+        action = action * 2 - 1
+        action[0] = 1 + max(abs(np.sum(action)), len(action) / 10) - np.sum(action[1:])
+        action = action / np.sum(action)
+        nb_long.append(np.sum(action[1:]>0))
+
+        # if np.sum(abs(action[1:] / np.sum(action)) > 0.17):
+        #     action = action *
+
+        max_action.append(max(action[1:]))
+        # action = np.squeeze(action)
 
         #*************************************************************************#
         #*************************************************************************#
@@ -78,10 +100,13 @@ def main(syms_to_use=None, start=None, end=None, step_size=None, lookback=None):
 
         # I append rewards and sharpe here for visualization later
         rewards.append(reward)
-        sharpe.append((np.sum(rewards) - len(rewards)) / np.sqrt(np.var(rewards) * len(rewards)))
+        try:
+            sharpe.append((np.sum(rewards) - len(rewards)) / np.sqrt(np.var(rewards) * len(rewards)))
+        except:
+            sharpe.append(0)
 
         if done:
-            # once done, you can visualize you results
+            # once done, you can visualize your results
             print('Final value:', val)
             print('Yearly reward:', val**(252 / len(env.timestamps)))
             print('Sharpe ratio:', (np.sum(rewards) - len(rewards)) / np.sqrt(np.var(rewards) * len(rewards)))
@@ -93,6 +118,9 @@ def main(syms_to_use=None, start=None, end=None, step_size=None, lookback=None):
             plt.figure()
             plt.plot(range(len(sharpe))[50:], sharpe[50:])
             plt.title('Sharpe over time')
+            plt.figure()
+            plt.scatter(nb_long, rewards)
+
             plt.show()
 
 if __name__ == '__main__':
