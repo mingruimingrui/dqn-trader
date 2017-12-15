@@ -34,6 +34,7 @@ class PriceStateHandler:
         self.data_store = data_file_reader.load()
         self.data_store = self.data_store[self.data_store[:,0] >= start]
         self.data_store = self.data_store[self.data_store[:,0] <= end]
+        self.isOutOfStates = False
 
         while(len(self.data_store) < lookback):
             self.data_store = np.concatenate(
@@ -48,56 +49,64 @@ class PriceStateHandler:
         returns next_price_state, isOutOfStates
         """
 
+        assert self.isOutOfStates is False, 'no more price states to fetch please re_initialize'
+
         next_price_state = self.data_store[:self.lookback]
 
         try:
             while(len(self.data_store) < self.lookback + self.step_size):
-                self.data_store = np.concatenate(
-                    self.data_store,
-                    self.data_file_reader.load()
-                )
+                new_data = self.data_file_reader.load()
+                self.data_store = np.concatenate((self.data_store, new_data))
                 self.data_store = self.data_store[self.data_store[:,0] >= self.start]
                 self.data_store = self.data_store[self.data_store[:,0] <= self.end]
         except:
-            return next_price_state, True
+            self.done = True
 
         self.data_store = self.data_store[self.step_size:]
 
-        return next_price_state, False
+        return next_price_state, self.isOutOfStates
 
 class Env:
     """
-    Home made Env, works like OpenAI gym but works with multi dimensional arrays
+    Home made Env, works like OpenAI gym but adjusted for bitcoin trading in
+    multiple markets
 
     data_path: string
         Should point to the path of a pkl file storing table like data
-        data file's first row should be a list [earliest_time, latest_time]
-        data file's second row should be the column names
-        data file should also contain the column 'timestamp' in sequential order
 
-    start_index, end_index: int (optional)
+        - Data file's first row should be a list [earliest_time, latest_time]
+        - Data file's second row should be column names with the first column
+        being 'timestamp' rest of which are market names
+        eg. ['timestamp', 'marketA', 'marketB', ...]
+        - Rest of data file should be data tables of class np.ndarray and
+        of shape N * len(column_names)
+
+    start, end: int (optional)
         Set start and end time, inclusive.
 
-    step_size: int
+    step_size: int (Default: 1)
         With every step, how many timesteps to move forward to next state
         Minimum 1
-        Default(1)
 
-    lookback: int
+    lookback: int (Default: 5)
         Signifies the number of timesteps to look back when returning state
         Try not to have lookback < step_size for obvious reasons
         Minimum 1
-        Default(5)
 
-    getReward: function(cur_state, next_state, action) => int
-        Your reward function
-        Should take in 2 states and an action to output an int signifying
-        the value to maximise
+    init_acc_state: np.ndarray (optional)
+        Initial account position of USD and BITCOIN of each market
+        Array should be of size 2 * num_markets
+        Columns of this array should represent each market in order as defined
+        in the colum names of your data file
+        Rows of this array should represent the money and Bitcoin account
+        eg. [[  100,   100,   100],
+             [0.010, 0.009, 0.013]]
+            for column names of ['timestamp', 'marketA', 'marketB', 'marketC']
 
     """
 
-    def __init__(self, data_path, start_index=None, end_index=None,
-        step_size=1, lookback=5):
+    def __init__(self, data_path, start=None, end=None,
+        step_size=1, lookback=5, init_acc_state=None):
 
         assert isinstance(data_path, str), 'data_path must be a string'
         assert os.path.isfile(data_path), 'data_path must point to a file'
@@ -132,10 +141,12 @@ class Env:
         self.time_col = column_names.index('timestamp')
 
         self.state_handler = PriceStateHandler(self.data_file_reader,
-            self.time, step_size, lookback, start, end)
+            self.time_col, step_size, lookback, start, end)
 
         self.cur_state, _ = self.state_handler.getNextState()
         self.incoming_transactions = []
+
+
         self.cur_time = self.cur_state[-1,self.time_col]
         self.next_time = self.cur_time + self.step_size
 
@@ -152,7 +163,7 @@ class Env:
         assert self.next_time is not None, 'no more steps left in env, please reset'
 
         # generate new state
-        next_state, isOutOFStates = self.state_handler.getNextState()
+        next_state, isOutOfStates = self.state_handler.getNextState()
 
         # calculate reward
         reward = self.getReward(self.cur_state, next_state, action)
