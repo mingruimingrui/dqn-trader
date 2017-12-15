@@ -101,9 +101,11 @@ ENV/
 .mypy_cache/
 
 # data files
+*db
 *pkl
-data/
+*.csv
+*.npz
 
 # to ignore
-playground/
-testing.py
+testing/
+stashed

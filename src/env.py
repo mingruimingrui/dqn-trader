@@ -1,179 +1,190 @@
-# home made env maker made to behave like openai gym
+# Took from one of my other projects
+# https://github.com/mingruimingrui/myEnv/blob/master/Env.py
+# Here we have to have a stack of incoming transactions and data has to be
+# read through a stream
+
 import os
-from datetime import datetime, timedelta
+import types
+
 import numpy as np
 
-# helper function to calculate difference in weeks
-def diff_week(d1, d2):
-    monday1 = d1 - timedelta(days=d1.weekday())
-    monday2 = d2 - timedelta(days=d2.weekday())
+import pickle
 
-    return round((monday2 - monday1).days / 7)
+class PriceStateHandler:
+    """
+    Home made class meant to facilitate with the getting of price states from
+    correct timeframes
 
-# syms_to_use (list-like)[optional]: sets env to contain only syms in list
-# start, end (datetime)[optional]: sets time period, inclusive
-# lookback (int)[default 5]: sets lookback period
-class Env:
+    data_file_reader: pickle.Unpickler
+    on next load gets the first chunk of data
 
-    def __init__(self, timestamps, syms, col_names, data,
-        syms_to_use=None, start=None, end=None, step_size='day', lookback=5):
+    time_col: the position where the timestamp column is located
 
-        if syms_to_use is not None:
-            assert isinstance(syms_to_use, list) | isinstance(syms_to_use, np.ndarray), 'syms_to_use must be list-like'
-            if isinstance(syms_to_use, np.ndarray):
-                assert len(syms_to_use, 1), 'syms_to_use must be vector'
-            data = data[:, list(map(lambda x: x in syms_to_use, syms)), :]
-            syms = syms_to_use
-
-        if start is not None:
-            assert isinstance(start, datetime), 'start must be datetime'
-            data = data[timestamps >= start]
-            timestamps = timestamps[timestamps >= start]
-
-        if end is not None:
-            assert isinstance(end, datetime), 'end must be datetime'
-            data = data[timestamps <= end]
-            timestamps = timestamps[timestamps <= end]
-
-        assert step_size in ['day', 'week', 'month'], 'step_size must be "day", "week" or "month"'
-        assert isinstance(lookback, int), 'lookback must be an integer'
-
-        # state_ts_dict is basically a dictionary linking state number to the timestamp index
-        # we want to figure out exactly which days to initiate trades
-        state_ts_dict = []
-        lookback_mult_dict = {'day': 1, 'week': 5, 'month': 20}
-
-        # day is the simplest, we trade on every opening date and lookback the previous few open days
-        if step_size is 'day':
-            state_ts_dict = np.arange(lookback * lookback_mult_dict['day'], len(timestamps))
-
-        # week is more complex, we want to trade on every mid week
-        if step_size in ['week', 'month']:
-            ts_week_number = list(map(lambda x: diff_week(x, timestamps[0]), timestamps))
-            ts_week_number = np.array(ts_week_number)
-            ts_index = np.arange(len(ts_week_number))
-
-            # this while look will config state_timestamps_dict to a list of all timestamps for mid-week
-            # will be usually a wed, sometimes tues or thurs, rarely mon or fri
-            while len(ts_week_number) > 0:
-                cur_week = ts_week_number[0]
-                index_cur_week = ts_week_number == cur_week
-
-                to_add_temp = ts_index[index_cur_week]
-                state_ts_dict.append(to_add_temp[int(np.floor(len(to_add_temp)/2))])
-
-                ts_index = ts_index[~index_cur_week]
-                ts_week_number = ts_week_number[~index_cur_week]
-
-            state_ts_dict = np.unique(state_ts_dict)
-
-            if step_size is 'week':
-                state_ts_dict = state_ts_dict[
-                    state_ts_dict >= lookback * lookback_mult_dict['week']
-                ]
-
-            # for months we want to trade on the first mid-week of every month
-            if step_size is 'month':
-                state_ts_months = list(map(lambda x: x.month, timestamps[state_ts_dict]))
-
-                prev_month = -1
-                temp = []
-                while len(state_ts_months) > 0:
-                    if prev_month is not state_ts_months[0]:
-                        prev_month = state_ts_months[0]
-                        temp.append(state_ts_dict[0])
-                    state_ts_months = state_ts_months[1:]
-                    state_ts_dict = state_ts_dict[1:]
-
-                state_ts_dict = np.array(temp)
-                state_ts_dict = state_ts_dict[
-                    state_ts_dict >= lookback * lookback_mult_dict['month']
-                ]
-
-        assert len(state_ts_dict) > 0 , 'not enough timestamps for your env'
-        assert data.shape[1]      > 0 , 'not enough assets in your env'
-        assert data.shape[2]      > 0 , 'not enough cols in your env'
-
-        self.timestamps = timestamps
-        self.syms = syms
-        self.col_names = col_names
-        self.data = data
+    step_size, lookback:
+    same from Env
+    """
+    def __init__(self, data_file_reader, time_col, step_size, lookback, start, end):
+        self.data_file_reader = data_file_reader
+        self.time_col = time_col
         self.step_size = step_size
         self.lookback = lookback
-        self.lookback_mult = lookback_mult_dict[self.step_size]
-        self.action_shape = (len(self.syms),)
-        self.state_ts_dict = state_ts_dict
-        self.state_nb = 0
-        self.max_state_nb = len(self.state_ts_dict) - 1
-        self.cur_time = timestamps[self.state_ts_dict[self.state_nb]]
-        self.next_time = timestamps[self.state_ts_dict[self.state_nb + 1]]
+        self.start = start
+        self.end = end
+        # data_store is something to be topped up
+        self.data_store = data_file_reader.load()
+        self.data_store = self.data_store[self.data_store[:,0] >= start]
+        self.data_store = self.data_store[self.data_store[:,0] <= end]
 
-        print('env initiated')
-        print(min(self.timestamps).strftime('%d %b %y'), 'to', max(self.timestamps).strftime('%d %b %y'))
-        print('step size:', self.step_size)
-        print('lookback :', self.lookback)
+        while(len(self.data_store) < lookback):
+            self.data_store = np.concatenate(
+                self.data_store,
+                self.data_file_reader.load()
+            )
+            self.data_store = self.data_store[self.data_store[:,0] >= start]
+            self.data_store = self.data_store[self.data_store[:,0] <= end]
 
-    def random_action(self):
+    def getNextState(self):
         """
-        random_action()
-        randomly generates an action
+        returns next_price_state, isOutOfStates
         """
-        action = np.random.random(self.action_shape)
-        while np.sum(action) == 0:
-            action = np.random.random(self.action_shape)
-        action /= np.sum(action)
 
-        return action
+        next_price_state = self.data_store[:self.lookback]
+
+        try:
+            while(len(self.data_store) < self.lookback + self.step_size):
+                self.data_store = np.concatenate(
+                    self.data_store,
+                    self.data_file_reader.load()
+                )
+                self.data_store = self.data_store[self.data_store[:,0] >= self.start]
+                self.data_store = self.data_store[self.data_store[:,0] <= self.end]
+        except:
+            return next_price_state, True
+
+        self.data_store = self.data_store[self.step_size:]
+
+        return next_price_state, False
+
+class Env:
+    """
+    Home made Env, works like OpenAI gym but works with multi dimensional arrays
+
+    data_path: string
+        Should point to the path of a pkl file storing table like data
+        data file's first row should be a list [earliest_time, latest_time]
+        data file's second row should be the column names
+        data file should also contain the column 'timestamp' in sequential order
+
+    start_index, end_index: int (optional)
+        Set start and end time, inclusive.
+
+    step_size: int
+        With every step, how many timesteps to move forward to next state
+        Minimum 1
+        Default(1)
+
+    lookback: int
+        Signifies the number of timesteps to look back when returning state
+        Try not to have lookback < step_size for obvious reasons
+        Minimum 1
+        Default(5)
+
+    getReward: function(cur_state, next_state, action) => int
+        Your reward function
+        Should take in 2 states and an action to output an int signifying
+        the value to maximise
+
+    """
+
+    def __init__(self, data_path, start_index=None, end_index=None,
+        step_size=1, lookback=5):
+
+        assert isinstance(data_path, str), 'data_path must be a string'
+        assert os.path.isfile(data_path), 'data_path must point to a file'
+
+        if start is not None:
+            assert isinstance(start, int), 'start must be int'
+
+        if end is not None:
+            assert isinstance(end, int), 'end must be int'
+
+        assert isinstance(step_size, int), 'step_size must be an int'
+        assert step_size >= 1, 'step_size must be 1 or greater'
+
+        assert isinstance(lookback, int), 'lookback must be an int'
+        assert lookback >= 1, 'lookback must be 1 or greater'
+
+        self.data_path = data_path
+        self.data_file = open(data_path, 'rb')
+        self.data_file_reader = pickle.Unpickler(self.data_file)
+
+        time_interval = self.data_file_reader.load()
+        self.earliest_time = max(time_interval[0], start)
+        self.latest_time = min(time_interval[1], end)
+        self.column_names = self.data_file_reader.load()
+
+        # now that we got the time period, we also check if it is valid
+        is_time_period_valid = self.latest_time - self.earliest_time + 1 >= lookback + step_size
+        assert is_time_period_valid, 'not enough timesteps'
+
+        self.step_size = step_size
+        self.lookback = lookback
+        self.time_col = column_names.index('timestamp')
+
+        self.state_handler = PriceStateHandler(self.data_file_reader,
+            self.time, step_size, lookback, start, end)
+
+        self.cur_state, _ = self.state_handler.getNextState()
+        self.incoming_transactions = []
+        self.cur_time = self.cur_state[-1,self.time_col]
+        self.next_time = self.cur_time + self.step_size
+
+        print('New Env initiated')
+        print('Timestamps from', self.earliest_time, 'to', self.latest_time)
+        print('Step size:', step_size)
+        print('Lookback:', lookback)
 
     def step(self, action):
         """
-        step(action)
-        action must be an array of size env.action_shape
+        action: <your condition in getReward>
         """
-        assert self.state_nb <= self.max_state_nb, 'no more steps left in env, please reset'
-        assert action.shape == self.action_shape, 'action is wrong shape'
-        assert np.sum(action) > 0, 'action sum must be greater than 0'
-        # if np.sum(abs(action[1:] / np.sum(action)) > 0.17):
-        #     print('UserWarning: Asset has more than 0.17% allocation')
 
-        # generate new state and normalize
-        state_ts_index = self.state_ts_dict[self.state_nb]
-        state = self.data[state_ts_index - self.lookback * self.lookback_mult : state_ts_index, :, :].copy()
-        mult = self.data[state_ts_index, :, self.col_names == 'open']
-        mult = np.dot(np.ones((self.lookback * self.lookback_mult,1)), mult)
-        mult = np.dot(np.expand_dims(mult, 2), np.ones((1, len(self.col_names))))
-        state /= mult
+        assert self.next_time is not None, 'no more steps left in env, please reset'
 
-        # calculate the timestamps for the state
-        time = self.timestamps[state_ts_index - self.lookback * self.lookback_mult : state_ts_index]
+        # generate new state
+        next_state, isOutOFStates = self.state_handler.getNextState()
 
-        # normalize action and calculate reward
-        action = action / np.sum(action)
-        action = np.squeeze(action)
-        open_p = np.squeeze(self.data[self.state_ts_dict[self.state_nb - 1], :, self.col_names == 'open'])
-        open_n = np.squeeze(self.data[state_ts_index                       , :, self.col_names == 'open'])
-
-        reward = np.sum(open_n / open_p * action)
+        # calculate reward
+        reward = self.getReward(self.cur_state, next_state, action)
 
         # check if done
-        done = self.state_nb + 1 >= self.max_state_nb
+        done = self.cur_time_index + self.step_size >= len(self.timestamps)
 
-        # update state_nbs
-        self.state_nb += 1
-        self.cur_time = self.timestamps[self.state_ts_dict[self.state_nb]]
-        if not done:
-            self.next_time = self.timestamps[self.state_ts_dict[self.state_nb + 1]]
-        else:
+        # update state
+        self.cur_time_index = self.cur_time_index + self.step_size
+        self.cur_data_index = self.cur_data_index + self.step_size
+        self.cur_time = timestamps[self.cur_time_index]
+        self.cur_state = next_state
+
+        if done:
             self.next_time = None
+        else:
+            self.next_time = timestamps[self.cur_time_index + self.step_size]
 
-        return state, time, reward, done
+        return next_state, reward, done
 
-    def reset(self):
+    def reset():
         """
-        reset()
         resets your env with same init values
         """
-        print('env reset')
-        self.state_nb = 0
-        self.cur_time = timestamps[timestamps[self.state_ts_dict[self.state_nb]]]
-        self.next_time = timestamps[timestamps[self.state_ts_dict[self.state_nb + 1]]]
+        print('Env reset')
+        self.cur_time_index = lookback - 1
+        self.cur_data_index = 0
+        self.cur_time = timestamps[self.cur_time_index]
+        self.next_time = timestamps[self.cur_time_index + self.step_size]
+        self.cur_state = self.data[self.cur_data_index:(self.cur_data_index + self.lookback)]
+
+    def close():
+        """
+        closes all opened files and turns env off
+        """
