@@ -16,7 +16,7 @@ from global_const import *
 
 def returnOnlyCaps(x):
     """
-    Return only captial letters in a string
+    Return only captial letters from a string
     """
     result = ""
     for c in x:
