@@ -7,6 +7,7 @@ import os
 import types
 
 import numpy as np
+import pandas as pd
 
 import pickle
 
@@ -77,7 +78,7 @@ class Env:
     We also hard code the transaction duration of
     - 1 hour for bitcoin transactions
     - 10 minutes for cash transfer
-    -
+    - 5 minutes for par trade
 
     data_path: string
         Should point to the path of a pkl file storing data in the following
@@ -176,17 +177,33 @@ class Env:
         market_names = self.column_names[1:]
         self.action_label = [market_name + 'USD_' + market_name + 'BC'
             for market_name in market_names]
+        self.action_fee_table = [(fees.loc[market_name,'pair'], fees.loc[market_name,'pair'])
+            for market_name in market_names]
+        self.action_acc_link = [([0,i], [1,i]) for i in range(self.num_markets)]
 
         for i, market_name1 in enumerate(market_names):
             self.action_label += [market_name1 + 'USD_' + market_name2 + 'USD'
                 for market_name2 in market_names[i+1:]]
+            self.action_fee_table += [(
+                    fees.loc[market_name1,'USD_withdraw'] + fees.loc[market_name2,'USD_deposit'],
+                    fees.loc[market_name2,'USD_withdraw'] + fees.loc[market_name1,'USD_deposit']
+                )
+                for market_name2 in market_names[i+1:]]
+            self.action_acc_link += [([0,i], [0,j]) for j in range(i+1, self.num_markets)]
+
+        for i, market_name1 in enumerate(market_names):
             self.action_label += [market_name1 + 'BC_' + market_name2 + 'BC'
                 for market_name2 in market_names[i+1:]]
+            self.action_fee_table += [(
+                    fees.loc[market_name1,'BC_withdraw'] + fees.loc[market_name2,'BC_deposit'],
+                    fees.loc[market_name2,'BC_withdraw'] + fees.loc[market_name1,'BC_deposit']
+                )
+                for market_name2 in market_names[i+1:]]
+            self.action_acc_link += [([1,i], [1,j]) for j in range(i+1, self.num_markets)]
 
         self.action_shape = (len(self.action_label),)
 
         # Store rest of env parameters
-        self.fees = fees
         self.step_size = step_size
         self.lookback = lookback
 
@@ -214,6 +231,8 @@ class Env:
         print('Step size:', step_size)
         print('Lookback:', lookback)
 
+    # def getCurStateValue(self):
+
     def step(self, action):
         """
         action: list-like
@@ -223,22 +242,81 @@ class Env:
         assert self.next_time is not None, 'no more steps left in env, please reset'
 
         assert isListLike(action), 'action must be like-like'
-        assert len(action) == self.action_shape, 'action must be correct shaped'
+        assert len(action) == self.action_shape[0], 'action must be correct shaped'
 
-        # carry out action
-
-
-        # generate new state
+        # generate next price state
         next_timestamps, next_price_state, is_out_of_states = self.state_handler.getNextState()
+
+        if np.sum(np.isnan(next_price_state)) + np.sum(np.isnan(self.cur_price_state)) > 0:
+            # if got nan
+            reward = False
+        else:
+            # if no nan
+            reward = True
+
+        # # carry out action to generate next acc state
+        # for incoming_transaction in self.incoming_transactions:
+        #     if next_timestamps[-1] >= incoming_transaction['timestamp']:
+        #         self.cur_acc_state[
+        #             incoming_transaction['x'], incoming_transaction['y']
+        #         ] += incoming_transaction['volume']
+        #
+        # for i, a in enumerate(action):
+        #     acc_1_index = self.action_acc_link[i][0]
+        #     acc_2_index = self.action_acc_link[i][1]
+        #
+        #     if i < num_markets:
+        #         # is a pair trade
+        #         mult = next_price_state[-1,i]
+        #         delay = 5 * 60
+        #     else:
+        #         # is not pair trade
+        #         mult = 1
+        #         if i < len(action)/2 + num_markets/2:
+        #             # is cash trade
+        #             delay = 10 * 60
+        #         else:
+        #             # is bc trade
+        #             delay = 60 * 60
+        #
+        #     if a > 0:
+        #         # transfer from acc1 to acc2
+        #         action_fee = self.action_fee_table[i][0]
+        #         transaction_volume = self.cur_acc_state[acc_1_index[0].acc_1_index[1]] * a
+        #         self.cur_acc_state[acc_1_index[0].acc_1_index[1]] -= transaction_volume
+        #         self.incoming_transactions.append({
+        #             'volume': transaction_volume * (1-action_fee) / mult,
+        #             'timestamp': self.cur_time + delay,
+        #             'x': acc_2_index[0],
+        #             'y': acc_2_index[1]
+        #         })
+        #     else:
+        #         # transfer from acc2 to acc1
+        #         action_fee = self.action_fee_table[i][1]
+        #         transaction_volume = self.cur_acc_state[acc_2_index[0].acc_2_index[1]] * a
+        #         self.cur_acc_state[acc_2_index[0].acc_2_index[1]] -= transaction_volume
+        #         self.incoming_transactions.append({
+        #             'volume': transaction_volume * (1-action_fee) * mult,
+        #             'timestamp': self.cur_time + delay,
+        #             'x': acc_1_index[0],
+        #             'y': acc_1_index[1]
+        #         })
 
         # calculate reward
 
-        # check if done
+        # update states and check if done
+        self.cur_price_state = next_price_state
+        self.cur_timestamps = next_timestamps
+        self.cur_time = self.cur_timestamps[-1]
 
-        # update states
+        if self.cur_time + self.step_size > self.latest_time:
+            self.next_time = None
+            done = True
+        else:
+            self.next_time = self.cur_time + self.step_size
+            done = False
 
-
-        return next_price_state, next_acc_state, reward, done
+        return self.cur_price_state, self.cur_acc_state, reward, done
 
     def reset(self):
         """

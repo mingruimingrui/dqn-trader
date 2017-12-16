@@ -11,6 +11,12 @@ Convert them into npz files with the key 'data' and store them in data/raw/
 There are no intensions of automating this script any time soon...
 """
 
+import os
+import sys
+
+import numpy as np
+import pandas as pd
+
 DOWNLOAD_URL = 'https://api.bitcoincharts.com/v1/csv/'
 FILES_TO_DOWNLOAD = [
     'bitstampUSD.csv.gz',
