@@ -32,13 +32,9 @@ def chunk(l, n):
         yield l[i:i + n]
 
 def dumpChunk(o, file_name, permission='ab'):
-    """
-    Opens up a pkl file, dumps object into it and closes file
-    Default option is to append
-    """
     with open(file_name, permission) as f:
-        pickler = pickle.Pickler(f)
-        pickler.dump(o)
+        writer = pickle.Pickler(f)
+        writer.dump(o)
 
 # script level constants
 TEMP_PATH = 'temp/'
@@ -67,18 +63,21 @@ print('Files to process', FILE_NAMES)
 print('Creating new empty file to store data')
 row_count = 0
 
-with open(BITCOIN_DATA_FILE_NAME, 'wb') as bitcoin_data_file:
+with open(TEMP_PATH + BITCOIN_DATA_FILE_NAME, 'wb') as bitcoin_data_file:
     bitcoin_data_writer = pickle.Pickler(bitcoin_data_file)
     bitcoin_data_writer.dump([int(latest_min), int(earliest_max)])
     bitcoin_data_writer.dump(COLUMN_NAMES)
 
-    for timestamps in chunk(np.arange(latest_min, earliest_max + 1), CHUNK_SIZE):
-        data_chunk = np.zeros((len(timestamps), len(COLUMN_NAMES))) * np.nan
-        data_chunk[:,0] = timestamps.astype('int')
-        bitcoin_data_writer.dump(data_chunk)
+for timestamps in chunk(np.arange(latest_min, earliest_max + 1), CHUNK_SIZE):
+    data_chunk = np.zeros((len(timestamps), len(COLUMN_NAMES))) * np.nan
+    data_chunk[:,0] = timestamps.astype('int')
+    dumpChunk(data_chunk, TEMP_PATH + BITCOIN_DATA_FILE_NAME)
+    # bitcoin_data_writer.dump(data_chunk)
 
-        row_count += len(timestamps)
-        sys.stdout.write('\r' + str(row_count) + ' rows generated')
+    row_count += len(timestamps)
+    sys.stdout.write('\r' + str(row_count) + ' rows generated')
+
+bitcoin_data_file.close()
 
 print('\nBase table generated, now processing files to fill data')
 
@@ -87,9 +86,9 @@ for i, file_name in enumerate(FILE_NAMES):
     with np.load(TEMP_PATH + file_name) as file:
 
         # read from bitcoin_data_file and write to a temp_data_file
-        bitcoin_data_file = open(BITCOIN_DATA_FILE_NAME, 'rb')
+        bitcoin_data_file = open(TEMP_PATH + BITCOIN_DATA_FILE_NAME, 'rb')
         bitcoin_data_reader = pickle.Unpickler(bitcoin_data_file)
-        temp_data_file = open(TEMP_DATA_FILE_NAME, 'wb')
+        temp_data_file = open(TEMP_PATH + TEMP_DATA_FILE_NAME, 'wb')
         temp_data_writer = pickle.Pickler(temp_data_file)
 
         # don't forget that first 2 rows are time interval and column names
@@ -97,6 +96,8 @@ for i, file_name in enumerate(FILE_NAMES):
         bitcoin_data_reader.load()
         temp_data_writer.dump([int(latest_min), int(earliest_max)])
         temp_data_writer.dump(COLUMN_NAMES)
+
+        temp_data_file.close()
 
         # also keep track of rows appended for verbose
         row_count = 0
@@ -136,7 +137,8 @@ for i, file_name in enumerate(FILE_NAMES):
                 else:
                     if (cur_time >= latest_min) & (cur_time <= earliest_max):
                         timestamps.append(cur_time)
-                        prices.append(np.nan)
+                        # prices.append(np.nan)
+                        prices.append(cur_price)
 
                 cur_time += 1
 
@@ -149,7 +151,8 @@ for i, file_name in enumerate(FILE_NAMES):
 
                 data_chunk = bitcoin_data_reader.load()
                 data_chunk[:,i+1] = prices[:CHUNK_SIZE]
-                temp_data_writer.dump(data_chunk)
+                dumpChunk(data_chunk, TEMP_PATH + TEMP_DATA_FILE_NAME)
+                # temp_data_writer.dump(data_chunk)
 
                 nan_count += np.sum(np.isnan(prices[CHUNK_SIZE:]))
                 row_count += len(prices)
@@ -163,7 +166,8 @@ for i, file_name in enumerate(FILE_NAMES):
 
             data_chunk = bitcoin_data_reader.load()
             data_chunk[:,i+1] = prices
-            temp_data_writer.dump(data_chunk)
+            dumpChunk(data_chunk, TEMP_PATH + TEMP_DATA_FILE_NAME)
+            # temp_data_writer.dump(data_chunk)
 
             nan_count += np.sum(np.isnan(prices))
             row_count += len(prices)
@@ -172,16 +176,11 @@ for i, file_name in enumerate(FILE_NAMES):
             sys.stdout.write('\r' + str(row_count) + ' rows generated for ' + COLUMN_NAMES[i+1])
 
         bitcoin_data_file.close()
-        temp_data_file.close()
+        # temp_data_file.close()
 
-        os.remove(BITCOIN_DATA_FILE_NAME)
-        os.rename(TEMP_DATA_FILE_NAME, BITCOIN_DATA_FILE_NAME)
+        os.remove(TEMP_PATH + BITCOIN_DATA_FILE_NAME)
+        os.rename(TEMP_PATH + TEMP_DATA_FILE_NAME, TEMP_PATH + BITCOIN_DATA_FILE_NAME)
 
         print()
         print(file_name, 'preprocessed, time_elpased: {}s'.format(round(time() - t)))
         print('Number of nan rows', nan_count)
-
-with open(BITCOIN_DATA_FILE_NAME, 'rb') as bitcoin_data_file:
-    unpickler = pickle.Unpickler(bitcoin_data_file)
-    print(unpickler.load())
-    print(unpickler.load()[-5])
