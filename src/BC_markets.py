@@ -50,17 +50,18 @@ class PriceStateHandler:
         self.end = end
         # data_store is something to be topped up
         self.data_store = data_file_reader.load()
-        self.data_store = self.data_store[self.data_store[:,0] >= start]
-        self.data_store = self.data_store[self.data_store[:,0] <= end]
+        self.data_store = self.data_store[self.data_store[:,0] >= self.start]
+        self.data_store = self.data_store[self.data_store[:,0] <= self.end]
+        self.data_store = self.data_store[(self.data_store[:,0] - self.start) % self.step_size == 0]
         self.is_out_of_states = False
 
         while(len(self.data_store) < lookback):
-            self.data_store = np.concatenate(
-                self.data_store,
-                self.data_file_reader.load()
-            )
-            self.data_store = self.data_store[self.data_store[:,0] >= start]
-            self.data_store = self.data_store[self.data_store[:,0] <= end]
+            new_data = self.data_file_reader.load()
+            new_data = new_data[new_data[:,0] >= self.start]
+            new_data = new_data[new_data[:,0] <= self.end]
+            new_data = new_data[(new_data[:,0] - self.start) % self.step_size == 0]
+
+            self.data_store = np.concatenate((self.data_store, new_data))
 
     def getNextState(self):
         """
@@ -75,13 +76,15 @@ class PriceStateHandler:
         try:
             while(len(self.data_store) < self.lookback + self.step_size):
                 new_data = self.data_file_reader.load()
+                new_data = new_data[new_data[:,0] >= self.start]
+                new_data = new_data[new_data[:,0] <= self.end]
+                new_data = new_data[(new_data[:,0] - self.start) % self.step_size == 0]
+
                 self.data_store = np.concatenate((self.data_store, new_data))
-                self.data_store = self.data_store[self.data_store[:,0] >= self.start]
-                self.data_store = self.data_store[self.data_store[:,0] <= self.end]
         except:
             self.is_out_of_states = True
 
-        self.data_store = self.data_store[self.step_size:]
+        self.data_store = self.data_store[1:]
 
         return next_timestamps, next_price_state, self.is_out_of_states
 
@@ -181,7 +184,7 @@ class Env:
         else:
             self.latest_time = time_interval[1]
 
-        is_time_period_valid = self.latest_time - self.earliest_time + 1 >= lookback + step_size
+        is_time_period_valid = self.latest_time - self.earliest_time + 1 >= (lookback + 1) * step_size
         assert is_time_period_valid, 'not enough timesteps'
 
         # Define action info and shape
