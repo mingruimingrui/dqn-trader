@@ -124,8 +124,7 @@ class Env:
         Minimum 1
 
     lookback: int (Default: 5)
-        Signifies the number of timesteps to look back when returning state
-        Try not to have lookback < step_size for obvious reasons
+        Number of timesteps to look back when returning state
         Minimum 1
 
     init_acc_state: np.ndarray (Optional)
